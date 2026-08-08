@@ -139,7 +139,7 @@ export default function App() {
         <TechStack />
 
         <footer className="mt-8 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-[#8b90b0]/40">
-          RoBERTa × BGE Semantic Engine — FastAPI Backend · React Frontend
+          RoBERTa × Semantic Engine — FastAPI Backend · React Frontend
         </footer>
       </main>
     </div>

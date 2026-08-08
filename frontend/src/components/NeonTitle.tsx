@@ -49,7 +49,7 @@ export default function NeonTitle() {
         <Cpu className="mb-1 mr-2 inline h-4 w-4 text-[#00e5ff]" />
         RoBERTa{' '}
         <span className="text-[#e8eaff]">linguistic forensics</span> ×{' '}
-        <span className="text-[#e8eaff]">BGE semantic fingerprinting</span> — drop two
+        <span className="text-[#e8eaff]">semantic fingerprinting</span> — drop two
         files below and let the machine judge.
       </motion.p>
     </div>

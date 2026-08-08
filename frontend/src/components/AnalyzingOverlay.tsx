@@ -5,7 +5,7 @@ import { BrainCircuit, GitCompareArrows, ShieldCheck, Activity } from 'lucide-re
 const STEPS = [
   { label: 'Tokenizing & preprocessing', icon: Activity, color: '#7c5cff' },
   { label: 'RoBERTa linguistic forensics', icon: BrainCircuit, color: '#00e5ff' },
-  { label: 'BGE semantic fingerprinting', icon: GitCompareArrows, color: '#22e584' },
+  { label: 'Semantic fingerprinting', icon: GitCompareArrows, color: '#22e584' },
   { label: 'Fusing verdicts', icon: ShieldCheck, color: '#7c5cff' },
 ];
 

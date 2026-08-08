@@ -1,6 +1,7 @@
 # app.py - Final FastAPI Backend with Double-Hybrid Model and CSV Download
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+import os
+from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 import torch
@@ -27,11 +28,10 @@ app.add_middleware(
 )
 
 # --- Global exception handler: return real error as JSON, never a blank 500 ---
-from fastapi import Request as _Request
 
 
 @app.exception_handler(Exception)
-async def unhandled_exception_handler(request: _Request, exc: Exception):
+async def unhandled_exception_handler(request: Request, exc: Exception):
     import traceback
 
     traceback.print_exc()
@@ -40,24 +40,14 @@ async def unhandled_exception_handler(request: _Request, exc: Exception):
     )
 
 
-# --- Global exception handler: return real error as JSON, never a blank 500 ---
-from fastapi.responses import JSONResponse as _JSONResponse
-from starlette.requests import Request as _Request
-
-
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: _Request, exc: Exception):
-    import traceback
-
-    traceback.print_exc()
-    return _JSONResponse(
-        status_code=500, content={"detail": f"{type(exc).__name__}: {exc}"}
-    )
-
-
 # --- 2. GLOBAL MODEL SETUP ---
-AI_MODEL_NAME = "Hello-SimpleAI/chatgpt-detector-roberta"
-SEMANTIC_MODEL_NAME = "BAAI/bge-large-en-v1.5"
+# Small/fast defaults (override with env vars, e.g. SEMANTIC_MODEL_NAME=BAAI/bge-large-en-v1.5)
+AI_MODEL_NAME = os.environ.get(
+    "AI_MODEL_NAME", "Hello-SimpleAI/chatgpt-detector-roberta"
+)
+SEMANTIC_MODEL_NAME = os.environ.get(
+    "SEMANTIC_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"
+)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

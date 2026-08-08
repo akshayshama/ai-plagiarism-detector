@@ -4,11 +4,11 @@
 
 # AI Code Plagiarism Detector
 
-A hybrid plagiarism & AI-generation detection engine. Drop in two code files and get a forensic verdict — fusing **RoBERTa linguistic forensics** with **BGE semantic fingerprinting** entirely on your machine. No cloud uploads, no API keys.
+A hybrid plagiarism & AI-generation detection engine. Drop in two code files and get a forensic verdict — fusing **RoBERTa linguistic forensics** with **semantic fingerprinting** entirely on your machine. No cloud uploads, no API keys.
 
 ## Features
 
-- **Dual-model forensics** — `Hello-SimpleAI/chatgpt-detector-roberta` scores the probability each file is AI-generated, while `BAAI/bge-large-en-v1.5` fingerprints semantic similarity between the two files.
+- **Dual-model forensics** — `Hello-SimpleAI/chatgpt-detector-roberta` scores the probability each file is AI-generated, while `sentence-transformers/all-MiniLM-L6-v2` (a lightweight ~90 MB model) fingerprints semantic similarity between the two files — fast enough to run instantly on CPU.
 - **Fused verdicting** — independent thresholds (60% AI-risk, 75% semantic match) combine into a single per-file verdict plus an overall pass/fail verdict.
 - **Micro-interaction UI** — letter-by-letter animated title, drag-and-drop with scanline feedback, full-screen scanning overlay with a 4-step pipeline readout, and spring-animated gauges and progress bars.
 - **Runs fully local** — CUDA-accelerated when available, CPU fallback otherwise; files never leave your machine.
@@ -75,7 +75,7 @@ pip install -r requirements.txt
 uvicorn app:app --reload --port 8000
 ```
 
-> The first startup downloads the RoBERTa and BGE models from Hugging Face (~2 GB total). Analysis runs on GPU when CUDA is available, otherwise on CPU.
+> The first startup downloads the RoBERTa and MiniLM models from Hugging Face (~600 MB total). Analysis runs on GPU when CUDA is available, otherwise on CPU — the default models are fast enough to run instantly on CPU.
 
 ### 2. Frontend (terminal 2)
 
@@ -91,7 +91,7 @@ Open `http://localhost:5174`. Vite proxies `/api` to the backend on port `8000`.
 
 ## Live Demo & Deployment
 
-The app has **no cloud-hosted live demo** because the ML models run locally (~2 GB) and files never leave the machine. To get a shareable URL, deploy the two halves yourself:
+The app has **no cloud-hosted live demo** because the ML models run locally and files never leave the machine. To get a shareable URL, deploy the two halves yourself:
 
 ### Frontend → Vercel (recommended)
 
@@ -111,7 +111,7 @@ output directory `dist`.
 
 ### Backend → Render / Railway
 
-The backend model files are ~2 GB, so pick a host with enough disk:
+The backend models are ~600 MB by default, so pick a host with enough disk:
 
 ```bash
 cd backend
@@ -179,4 +179,4 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 | Check             | Flag when            | Model                                  |
 | ----------------- | -------------------- | -------------------------------------- |
 | AI generation     | probability > 60%    | `chatgpt-detector-roberta`             |
-| Cross-file match  | similarity > 75%     | `bge-large-en-v1.5` cosine similarity  |
+| Cross-file match  | similarity > 75%     | `all-MiniLM-L6-v2` cosine similarity  |

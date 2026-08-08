@@ -181,7 +181,7 @@ export default function ResultsDashboard({ report }: { report: AnalysisReport })
             <div className="flex items-center gap-3 rounded-xl border border-[#7c5cff]/25 bg-[#7c5cff]/10 px-4 py-3">
               <ScanLine className="h-4 w-4 shrink-0 text-[#7c5cff]" />
               <p className="font-mono text-xs leading-relaxed text-[#c4b8ff]">
-                Hybrid verdict: RoBERTa AI-probability fused with BGE semantic fingerprinting.
+                Hybrid verdict: RoBERTa AI-probability fused with semantic fingerprinting.
               </p>
             </div>
           </div>
