@@ -1,243 +1,227 @@
-"""
-FastAPI application for OpenEnv Data Pipeline Triage & Repair environment.
-Exposes all required endpoints for agent evaluation.
+# app.py - Final FastAPI Backend with Double-Hybrid Model and CSV Download
 
-Environment Variables:
-    HF_TOKEN (optional): HuggingFace token for authenticated endpoints
-    API_BASE_URL (optional): Base URL for the environment server (default: http://localhost:7860)
-    MODEL_NAME (optional): OpenAI model to use (default: gpt-4o-mini)
-"""
-
-import os
-from contextlib import asynccontextmanager
-from typing import Any
-
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse, StreamingResponse
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from sentence_transformers import SentenceTransformer, util
+from typing import List, Dict, Any
+import warnings
+import csv
+import io
+import json
 
-load_dotenv()
+# Suppress Hugging Face warnings during model loading for a cleaner console
+warnings.filterwarnings("ignore")
 
-from models import (
-    Action, Observation, Reward, GraderResult, TasksResponse,
-    TaskInfo, BaselineResult, StepResponse
-)
-from environment import DataPipelineEnvironment
+app = FastAPI(title="AI Plagiarism Detector Core Engine (RoBERTa Semantic)")
 
-
-HF_TOKEN = os.environ.get("HF_TOKEN")
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:7860")
-MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
-
-
-class ResetRequest(BaseModel):
-    task_id: str | None = None
-
-
-class StepRequest(BaseModel):
-    action: Action
-
-
-class BaselineRequest(BaseModel):
-    model: str = MODEL_NAME
-
-
-env = DataPipelineEnvironment(seed=42)
-
-baseline_scores: dict[str, float] = {}
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Initialize environment on startup."""
-    env.reset("fix_null_values")
-    yield
-
-
-app = FastAPI(
-    title="Data Pipeline Triage & Repair Environment",
-    description="OpenEnv-compliant environment for AI agent evaluation in data pipeline repair tasks",
-    version="1.0.0",
-    lifespan=lifespan
-)
-
+# --- 1. CORS Setup ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # WARNING: Change this to specific domains in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# --- 2. GLOBAL MODEL SETUP ---
+AI_MODEL_NAME = "Hello-SimpleAI/chatgpt-detector-roberta"
+SEMANTIC_MODEL_NAME = "BAAI/bge-large-en-v1.5"
 
-@app.get("/", tags=["Health"])
-async def root() -> dict[str, Any]:
-    """Health check endpoint for HF Space deployment."""
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+AI_PLAGIARISM_THRESHOLD = 0.60
+SEMANTIC_PLAGIARISM_THRESHOLD = 0.75
+
+AI_TOKENIZER, AI_MODEL, SEMANTIC_MODEL = None, None, None
+
+
+@app.on_event("startup")
+def load_models():
+    """Load large models only once when the application starts."""
+    global AI_TOKENIZER, AI_MODEL, SEMANTIC_MODEL
+    try:
+        print(f"Loading models on device: {DEVICE}")
+
+        # 1. Load AI Detection Model (RoBERTa For Classification)
+        AI_TOKENIZER = AutoTokenizer.from_pretrained(AI_MODEL_NAME)
+        AI_MODEL = AutoModelForSequenceClassification.from_pretrained(AI_MODEL_NAME).to(
+            DEVICE
+        )
+
+        # 2. Load Semantic Similarity Model (BGE/SentenceTransformer)
+        SEMANTIC_MODEL = SentenceTransformer(SEMANTIC_MODEL_NAME).to(DEVICE)
+        print("All models loaded successfully.")
+    except Exception as e:
+        print(
+            f"FATAL ERROR: Could not load required models. Analysis will be disabled. Error: {e}"
+        )
+        AI_TOKENIZER, AI_MODEL, SEMANTIC_MODEL = None, None, None
+
+
+# --- 3. Core Analysis Functions ---
+
+
+def predict_ai_probability(text: str) -> float:
+    """Predicts the probability that the text is AI-generated (0.0 to 1.0)."""
+    if AI_MODEL is None:
+        return 0.5
+
+    inputs = AI_TOKENIZER(
+        text, return_tensors="pt", truncation=True, padding=True, max_length=512
+    )
+    inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+
+    with torch.no_grad():
+        outputs = AI_MODEL(**inputs)
+
+    probabilities = torch.softmax(outputs.logits, dim=1)
+    return probabilities[0][1].item()
+
+
+def calculate_semantic_similarity(text1: str, text2: str) -> float:
+    """Calculates semantic similarity between two texts using the BGE model."""
+    if SEMANTIC_MODEL is None:
+        return 0.0
+
+    with torch.no_grad():
+        emb1 = SEMANTIC_MODEL.encode(text1, convert_to_tensor=True).to(DEVICE)
+        emb2 = SEMANTIC_MODEL.encode(text2, convert_to_tensor=True).to(DEVICE)
+
+    similarity = util.cos_sim(emb1.unsqueeze(0), emb2.unsqueeze(0)).item()
+    return similarity
+
+
+def generate_csv_report(results: List[Dict[str, Any]]) -> io.StringIO:
+    """Converts the list of result dictionaries into an in-memory CSV file stream."""
+
+    fieldnames = [
+        "filename",
+        "verdict",
+        "ai_probability",
+        "semantic_score",
+        "is_ai_plagiarism",
+    ]
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+
+    writer.writeheader()
+
+    for row in results:
+        writer.writerow(
+            {
+                "filename": row["filename"],
+                "verdict": row["verdict"],
+                "ai_probability": row["ai_probability"],
+                "semantic_score": row["semantic_score"],
+                "is_ai_plagiarism": row["is_ai_plagiarism"],
+            }
+        )
+
+    output.seek(0)
+    return output
+
+
+# --- 4. ENDPOINTS ---
+
+
+@app.get("/ping")
+def health_check():
+    """Health check endpoint."""
     return {
         "status": "ok",
-        "message": "Data Pipeline Triage & Repair Environment",
-        "version": "1.0.0",
-        "config": {
-            "hf_token": "set" if HF_TOKEN else None,
-            "api_base_url": API_BASE_URL,
-            "model_name": MODEL_NAME
+        "service": "AI Detector v2 (RoBERTa Semantic)",
+        "ai_model_loaded": AI_MODEL is not None,
+        "semantic_model_loaded": SEMANTIC_MODEL is not None,
+    }
+
+
+@app.post("/api/analyze_submissions")
+async def analyze_submissions(
+    files: list[UploadFile] = File(...), format: str = Form("json")
+):
+    """
+    Analyzes exactly two uploaded files for AI generation probability and semantic similarity,
+    returning results as JSON or a downloadable CSV file.
+    """
+    if len(files) != 2:
+        raise HTTPException(
+            status_code=400, detail="Must upload exactly 2 files for comparison."
+        )
+
+    if AI_MODEL is None or SEMANTIC_MODEL is None:
+        raise HTTPException(
+            status_code=503,
+            detail="AI and Semantic models are not loaded. Check server logs.",
+        )
+
+    # 1. Read Contents
+    contents = []
+    filenames = []
+    for f in files:
+        try:
+            content = await f.read()
+            contents.append(content.decode("utf-8"))
+            filenames.append(f.filename)
+        except Exception:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not read/decode file: {f.filename}. Ensure it's a plain text/code file.",
+            )
+
+    # 2. Run Analysis
+    results = []
+    semantic_score = calculate_semantic_similarity(contents[0], contents[1])
+
+    for i in range(2):
+        text_content = contents[i]
+
+        # AI Detection
+        ai_probability = predict_ai_probability(text_content)
+        is_ai_plagiarism = ai_probability > AI_PLAGIARISM_THRESHOLD
+
+        # Determine Verdict
+        verdict = "ORIGINAL"
+        if is_ai_plagiarism:
+            verdict = "PLAGIARISM (High AI Prob)"
+        elif semantic_score > SEMANTIC_PLAGIARISM_THRESHOLD:
+            verdict = "PLAGIARISM (High Semantic Match)"
+
+        results.append(
+            {
+                "filename": filenames[i],
+                "ai_probability": round(ai_probability, 4),
+                "is_ai_plagiarism": is_ai_plagiarism,
+                "semantic_score": round(semantic_score, 4),
+                "verdict": verdict,
+            }
+        )
+
+    # 3. Determine Overall Verdict
+    overall_verdict = "ORIGINAL (All Checks Passed)"
+    if results[0]["is_ai_plagiarism"] or results[1]["is_ai_plagiarism"]:
+        overall_verdict = "PLAGIARISM DETECTED (One or both files are AI-generated)"
+    elif semantic_score > SEMANTIC_PLAGIARISM_THRESHOLD:
+        overall_verdict = (
+            "PLAGIARISM DETECTED (High semantic match between the two files)"
+        )
+
+    # --- 4. Return Response ---
+
+    if format.lower() == "csv":
+        csv_stream = generate_csv_report(results)
+        headers = {
+            "Content-Disposition": 'attachment; filename="plagiarism_report.csv"'
         }
+        return StreamingResponse(csv_stream, headers=headers, media_type="text/csv")
+
+    # Default: Return JSON response
+    final_response = {
+        "overall_verdict": overall_verdict,
+        "file_results": results,
+        "semantic_similarity_score_A_B": round(semantic_score, 4),
     }
-
-
-@app.get("/config", tags=["Info"])
-async def get_config() -> dict[str, Any]:
-    """Get current configuration from environment variables."""
-    return {
-        "hf_token": "set" if HF_TOKEN else None,
-        "api_base_url": API_BASE_URL,
-        "model_name": MODEL_NAME,
-        "port": int(os.environ.get("PORT", "7860")),
-        "host": os.environ.get("HOST", "0.0.0.0")
-    }
-
-
-@app.post("/reset", response_model=Observation, tags=["Environment"])
-async def reset_environment(request: ResetRequest | None = None) -> Observation:
-    """
-    Reset the environment to initial state.
-    
-    Args:
-        request: Optional reset request with task_id
-        
-    Returns:
-        Initial observation
-    """
-    task_id = request.task_id if request else None
-    observation = env.reset(task_id)
-    return observation
-
-
-@app.post("/step", response_model=StepResponse, tags=["Environment"])
-async def step_environment(request: StepRequest) -> StepResponse:
-    """
-    Execute one step in the environment.
-    
-    Args:
-        request: Step request containing the action
-        
-    Returns:
-        Step response with observation, reward, and status
-    """
-    try:
-        observation, reward, terminated, info = env.step(request.action)
-        
-        return StepResponse(
-            observation=observation,
-            reward=reward,
-            terminated=terminated,
-            truncated=observation.step >= observation.max_steps,
-            info=info
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@app.get("/state", tags=["Environment"])
-async def get_state() -> dict[str, Any]:
-    """
-    Get the current underlying state.
-    
-    Returns:
-        Dictionary representing current environment state
-    """
-    return env.state()
-
-
-@app.get("/grader", response_model=GraderResult, tags=["Evaluation"])
-async def get_grader_score() -> GraderResult:
-    """
-    Get the final grader score after episode completion.
-    
-    Returns:
-        Grader result with score and detailed metrics
-    """
-    return env.grade()
-
-
-@app.get("/tasks", response_model=TasksResponse, tags=["Info"])
-async def get_tasks() -> TasksResponse:
-    """
-    Get list of all tasks and the action schema.
-    
-    Returns:
-        Tasks response with task list and action schema
-    """
-    tasks = env.get_tasks()
-    action_schema = env.get_action_schema()
-    
-    task_infos = [
-        TaskInfo(
-            task_id=task_id,
-            name=task_info.name,
-            description=task_info.description,
-            difficulty=task_info.difficulty,
-            max_steps=task_info.max_steps,
-            evaluation_criteria=task_info.evaluation_criteria
-        )
-        for task_id, task_info in tasks.items()
-    ]
-    
-    return TasksResponse(
-        tasks=task_infos,
-        action_schema=action_schema
-    )
-
-
-@app.post("/baseline", response_model=BaselineResult, tags=["Evaluation"])
-async def run_baseline(request: BaselineRequest | None = None) -> BaselineResult:
-    """
-    Trigger the baseline inference and return scores for all 3 tasks.
-    
-    Note: This runs a simple heuristic baseline. For full OpenAI-based
-    baseline, use the separate baseline.py script.
-    
-    Args:
-        request: Optional baseline request with model specification
-        
-    Returns:
-        Baseline result with scores for all tasks
-    """
-    global baseline_scores
-    
-    try:
-        baseline_scores = env.run_baseline()
-        
-        total_score = sum(baseline_scores.values())
-        average_score = total_score / len(baseline_scores) if baseline_scores else 0.0
-        
-        return BaselineResult(
-            task_results=baseline_scores,
-            average_score=average_score,
-            total_score=total_score
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Baseline execution failed: {str(e)}")
-
-
-@app.get("/metrics", tags=["Info"])
-async def get_metrics() -> dict[str, Any]:
-    """Get current environment metrics."""
-    state = env.state()
-    
-    return {
-        "current_task": state.get("current_task_id"),
-        "step": state.get("step"),
-        "max_steps": state.get("max_steps"),
-        "repair_progress": state.get("repair_progress"),
-        "schema_fixed": state.get("schema_fixed"),
-        "corruption_cleared": state.get("corruption_cleared"),
-        "actions_taken": state.get("actions_taken"),
-        "episode_complete": state.get("episode_complete")
-    }
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    return JSONResponse(content=final_response)
