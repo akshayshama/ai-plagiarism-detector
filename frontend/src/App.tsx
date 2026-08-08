@@ -6,6 +6,7 @@ import NeonTitle from './components/NeonTitle';
 import FileDropzone from './components/FileDropzone';
 import AnalyzingOverlay from './components/AnalyzingOverlay';
 import ResultsDashboard from './components/ResultsDashboard';
+import TechStack from './components/TechStack';
 import { analyzeSubmissions } from './api';
 import type { AnalysisReport, AnalysisStatus } from './types';
 
@@ -135,7 +136,9 @@ export default function App() {
           </AnimatePresence>
         </motion.div>
 
-        <footer className="mt-16 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-[#8b90b0]/40">
+        <TechStack />
+
+        <footer className="mt-8 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-[#8b90b0]/40">
           RoBERTa × BGE Semantic Engine — FastAPI Backend · React Frontend
         </footer>
       </main>
