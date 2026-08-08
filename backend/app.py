@@ -26,6 +26,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- Global exception handler: return real error as JSON, never a blank 500 ---
+from fastapi import Request as _Request
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: _Request, exc: Exception):
+    import traceback
+
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500, content={"detail": f"{type(exc).__name__}: {exc}"}
+    )
+
+
+# --- Global exception handler: return real error as JSON, never a blank 500 ---
+from fastapi.responses import JSONResponse as _JSONResponse
+from starlette.requests import Request as _Request
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: _Request, exc: Exception):
+    import traceback
+
+    traceback.print_exc()
+    return _JSONResponse(
+        status_code=500, content={"detail": f"{type(exc).__name__}: {exc}"}
+    )
+
+
 # --- 2. GLOBAL MODEL SETUP ---
 AI_MODEL_NAME = "Hello-SimpleAI/chatgpt-detector-roberta"
 SEMANTIC_MODEL_NAME = "BAAI/bge-large-en-v1.5"

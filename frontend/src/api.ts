@@ -7,10 +7,17 @@ export async function analyzeSubmissions(files: File[]): Promise<AnalysisReport>
   files.forEach((f) => form.append('files', f));
   form.append('format', 'json');
 
-  const response = await fetch(`${API_BASE}/api/analyze_submissions`, {
-    method: 'POST',
-    body: form,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/api/analyze_submissions`, {
+      method: 'POST',
+      body: form,
+    });
+  } catch {
+    throw new Error(
+      'Cannot reach the backend. Make sure it is running on port 8000 and has finished loading the models (watch the terminal for "All models loaded successfully").'
+    );
+  }
 
   if (!response.ok) {
     let detail = `Server responded with status ${response.status}`;
