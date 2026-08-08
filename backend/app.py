@@ -59,19 +59,19 @@ AI_TOKENIZER, AI_MODEL, SEMANTIC_MODEL = None, None, None
 
 @app.on_event("startup")
 def load_models():
-    """Load large models only once when the application starts."""
+    """Load small models only once when the application starts."""
     global AI_TOKENIZER, AI_MODEL, SEMANTIC_MODEL
     try:
         print(f"Loading models on device: {DEVICE}")
 
         # 1. Load AI Detection Model (RoBERTa For Classification)
         AI_TOKENIZER = AutoTokenizer.from_pretrained(AI_MODEL_NAME)
-        AI_MODEL = AutoModelForSequenceClassification.from_pretrained(AI_MODEL_NAME).to(
-            DEVICE
-        )
+        AI_MODEL = AutoModelForSequenceClassification.from_pretrained(
+            AI_MODEL_NAME, low_cpu_mem_usage=True
+        ).to(DEVICE)
 
-        # 2. Load Semantic Similarity Model (BGE/SentenceTransformer)
-        SEMANTIC_MODEL = SentenceTransformer(SEMANTIC_MODEL_NAME).to(DEVICE)
+        # 2. Load Semantic Similarity Model (small MiniLM / SentenceTransformer)
+        SEMANTIC_MODEL = SentenceTransformer(SEMANTIC_MODEL_NAME, device=DEVICE)
         print("All models loaded successfully.")
     except Exception as e:
         print(
