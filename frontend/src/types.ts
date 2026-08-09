@@ -3,6 +3,8 @@ export interface FileResult {
   ai_probability: number;
   is_ai_plagiarism: boolean;
   semantic_score: number;
+  structural_score: number | null;
+  structural_note: string | null;
   verdict: string;
 }
 

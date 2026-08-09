@@ -88,6 +88,35 @@ function FileCard({ index, file }: { index: number; file: AnalysisReport['file_r
             />
           </div>
         </div>
+
+        <div>
+          <div className="mb-2 flex items-center justify-between font-mono text-xs">
+            <span className="uppercase tracking-wider text-[#8b90b0]">Structural Match vs Other File</span>
+            {file.structural_score === null ? (
+              <span className="font-semibold text-[#8b90b0]">N/A</span>
+            ) : (
+              <span className="font-semibold text-[#7c5cff]">
+                {(file.structural_score * 100).toFixed(2)}%
+              </span>
+            )}
+          </div>
+          <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/5">
+            <motion.div
+              className="h-full rounded-full bg-[#7c5cff]"
+              style={{ boxShadow: '0 0 10px #7c5cff88' }}
+              initial={{ width: 0 }}
+              animate={{
+                width: `${file.structural_score === null ? 0 : Math.min(100, file.structural_score * 100)}%`,
+              }}
+              transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+            />
+          </div>
+          {file.structural_note && (
+            <p className="mt-1.5 font-mono text-[10px] leading-relaxed text-[#8b90b0]">
+              {file.structural_note}
+            </p>
+          )}
+        </div>
       </div>
     </motion.div>
   );
@@ -160,33 +189,55 @@ export default function ResultsDashboard({ report }: { report: AnalysisReport })
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="glass-panel corner-lines relative rounded-2xl p-6"
+          className="glass-panel corner-lines relative flex flex-col items-center justify-center rounded-2xl p-6"
         >
-          <p className="mb-4 font-mono text-xs uppercase tracking-[0.25em] text-[#8b90b0]">
-            Thresholds
-          </p>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-sm text-[#e8eaff]">AI Risk</span>
-              <span className="rounded-lg bg-[#ff4d6d]/15 px-2.5 py-1 font-mono text-sm font-bold text-[#ff4d6d] ring-1 ring-[#ff4d6d]/30">
-                &gt; 60%
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-sm text-[#e8eaff]">Semantic Similarity</span>
-              <span className="rounded-lg bg-[#00e5ff]/15 px-2.5 py-1 font-mono text-sm font-bold text-[#00e5ff] ring-1 ring-[#00e5ff]/30">
-                &gt; 75%
-              </span>
-            </div>
-            <div className="flex items-center gap-3 rounded-xl border border-[#7c5cff]/25 bg-[#7c5cff]/10 px-4 py-3">
-              <ScanLine className="h-4 w-4 shrink-0 text-[#7c5cff]" />
-              <p className="font-mono text-xs leading-relaxed text-[#c4b8ff]">
-                Hybrid verdict: RoBERTa AI-probability fused with semantic fingerprinting.
-              </p>
-            </div>
-          </div>
+          <ScoreGauge
+            value={report.file_results[0]?.structural_score ?? null}
+            label="Structural Match"
+            accent="primary"
+          />
         </motion.div>
       </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+        className="glass-panel corner-lines relative rounded-2xl p-6"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-[#8b90b0]">
+            Thresholds
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-sm text-[#e8eaff]">AI Risk</span>
+            <span className="rounded-lg bg-[#ff4d6d]/15 px-2.5 py-1 font-mono text-sm font-bold text-[#ff4d6d] ring-1 ring-[#ff4d6d]/30">
+              &gt; 60%
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-sm text-[#e8eaff]">Semantic Similarity</span>
+            <span className="rounded-lg bg-[#00e5ff]/15 px-2.5 py-1 font-mono text-sm font-bold text-[#00e5ff] ring-1 ring-[#00e5ff]/30">
+              &gt; 75%
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-sm text-[#e8eaff]">Structural Match</span>
+            <span className="rounded-lg bg-[#7c5cff]/15 px-2.5 py-1 font-mono text-sm font-bold text-[#c4b8ff] ring-1 ring-[#7c5cff]/30">
+              &gt; 80%
+            </span>
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-3 rounded-xl border border-[#7c5cff]/25 bg-[#7c5cff]/10 px-4 py-3">
+          <ScanLine className="h-4 w-4 shrink-0 text-[#7c5cff]" />
+          <p className="font-mono text-xs leading-relaxed text-[#c4b8ff]">
+            Hybrid verdict: RoBERTa AI-probability fused with semantic fingerprinting and
+            AST-based structural matching. A file is flagged when any signal crosses its threshold.
+          </p>
+        </div>
+      </motion.div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {report.file_results.map((f, i) => (

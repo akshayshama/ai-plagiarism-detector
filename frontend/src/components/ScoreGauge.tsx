@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, useMotionValue, animate } from 'framer-motion';
 
 interface Props {
-  value: number; // 0..1
+  value: number | null; // 0..1, or null when the metric is not applicable
   label: string;
   accent?: 'cyan' | 'green' | 'red' | 'primary';
   size?: number;
@@ -26,7 +26,7 @@ export default function ScoreGauge({ value, label, accent = 'cyan', size = 190 }
   const mv = useMotionValue(0);
 
   useEffect(() => {
-    const controls = animate(mv, value, {
+    const controls = animate(mv, value ?? 0, {
       duration: 1.4,
       ease: [0.22, 1, 0.36, 1],
       onUpdate: (v) => setDisplay(v),
@@ -34,8 +34,13 @@ export default function ScoreGauge({ value, label, accent = 'cyan', size = 190 }
     return controls.stop;
   }, [value, mv]);
 
+  const isNA = value === null || value === undefined;
   const percent = Math.round(display * 100);
-  const color = accent === 'cyan' ? valueColor(display) : ACCENTS[accent].color;
+  const color = isNA
+    ? '#8b90b0'
+    : accent === 'cyan'
+      ? valueColor(display)
+      : ACCENTS[accent].color;
   const R = 74;
   const CIRC = Math.PI * R; // semicircle circumference
   const filled = CIRC * display;
@@ -64,8 +69,8 @@ export default function ScoreGauge({ value, label, accent = 'cyan', size = 190 }
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center pt-6">
           <span className="font-mono text-4xl font-bold" style={{ color }}>
-            {percent}
-            <span className="text-lg">%</span>
+            {isNA ? 'N/A' : percent}
+            {!isNA && <span className="text-lg">%</span>}
           </span>
         </div>
       </div>
