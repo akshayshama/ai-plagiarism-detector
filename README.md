@@ -91,7 +91,35 @@ Open `http://localhost:5174`. Vite proxies `/api` to the backend on port `8000`.
 
 ## Live Demo & Deployment
 
-The app has **no cloud-hosted live demo** because the ML models run locally and files never leave the machine. To get a shareable URL, deploy the two halves yourself:
+**Live UI (Vercel):** https://ai-plagiarism-detector-akshayshamas.vercel.app
+
+The frontend is deployed on Vercel. The ML backend is **not publicly hosted** — the
+models run locally and files never leave the machine. To analyze files from the live
+site, run the backend on your own machine with CORS opened to the live frontend:
+
+```bash
+cd backend
+ALLOWED_ORIGINS=http://localhost:5174,https://ai-plagiarism-detector-akshayshamas.vercel.app uvicorn app:app --port 8000
+```
+
+(Your browser allows the live `https` site to call `http://localhost:8000`; anyone
+else who visits will just see the backend-unreachable message.)
+
+### Deploying the frontend to Vercel
+
+```bash
+cd frontend
+npm run build
+```
+Then either connect the repo in the Vercel dashboard (root directory `frontend`) or use the CLI:
+`vercel --prod`. The repo ships a `frontend/vercel.json` (Vite framework, `dist` output).
+
+### Deploying the backend (for a fully public demo)
+
+The backend needs a Python host with enough disk for torch + models (~1 GB). The repo
+ships a `backend/Dockerfile` (CPU-only torch, PORT-aware). Point the frontend at it by
+rebuilding with `VITE_API_URL=https://your-backend.example.com npm run build`, and set
+the backend's `ALLOWED_ORIGINS` to the frontend origin.
 
 ### Frontend → Vercel (recommended)
 
