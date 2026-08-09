@@ -200,28 +200,38 @@ async def analyze_submissions(
 
         # AI Detection
         ai_probability = predict_ai_probability(text_content)
-        is_ai_plagiarism = ai_probability > AI_PLAGIARISM_THRESHOLD
+        is_ai_generated = ai_probability > AI_PLAGIARISM_THRESHOLD
+        is_high_semantic_match = semantic_score > SEMANTIC_PLAGIARISM_THRESHOLD
+
+        # Flag the file whenever plagiarism is detected for ANY reason
+        # (AI-generated OR high semantic match), not only for the AI check.
+        is_flagged_plagiarism = is_ai_generated or is_high_semantic_match
 
         # Determine Verdict
         verdict = "ORIGINAL"
-        if is_ai_plagiarism:
+        if is_ai_generated:
             verdict = "PLAGIARISM (High AI Prob)"
-        elif semantic_score > SEMANTIC_PLAGIARISM_THRESHOLD:
+        elif is_high_semantic_match:
             verdict = "PLAGIARISM (High Semantic Match)"
 
         results.append(
             {
                 "filename": filenames[i],
                 "ai_probability": round(ai_probability, 4),
-                "is_ai_plagiarism": is_ai_plagiarism,
+                "is_ai_plagiarism": is_flagged_plagiarism,
                 "semantic_score": round(semantic_score, 4),
                 "verdict": verdict,
             }
         )
 
     # 3. Determine Overall Verdict
+    # NOTE: is_ai_plagiarism now means "flagged for any reason", so re-derive the
+    # AI-only check here to keep the verdict strings accurate.
     overall_verdict = "ORIGINAL (All Checks Passed)"
-    if results[0]["is_ai_plagiarism"] or results[1]["is_ai_plagiarism"]:
+    any_file_ai_generated = any(
+        r["ai_probability"] > AI_PLAGIARISM_THRESHOLD for r in results
+    )
+    if any_file_ai_generated:
         overall_verdict = "PLAGIARISM DETECTED (One or both files are AI-generated)"
     elif semantic_score > SEMANTIC_PLAGIARISM_THRESHOLD:
         overall_verdict = (

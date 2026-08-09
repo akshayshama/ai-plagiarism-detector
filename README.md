@@ -153,7 +153,7 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 ```json
 {
-  "overall_verdict": "PLAGIARISM DETECTED (One or both files are AI-generated)",
+  "overall_verdict": "PLAGIARISM DETECTED (High semantic match between the two files)",
   "file_results": [
     {
       "filename": "a.py",
@@ -165,14 +165,17 @@ uvicorn app:app --host 0.0.0.0 --port 8000
     {
       "filename": "b.py",
       "ai_probability": 0.11,
-      "is_ai_plagiarism": false,
+      "is_ai_plagiarism": true,
       "semantic_score": 0.81,
-      "verdict": "ORIGINAL"
+      "verdict": "PLAGIARISM (High Semantic Match)"
     }
   ],
   "semantic_similarity_score_A_B": 0.81
 }
 ```
+
+> `is_ai_plagiarism` is `true` whenever a file is flagged for **any** reason — either
+> AI-generated (probability > 60%) or a high semantic match (> 75%) — not only the AI check.
 
 ## Thresholds
 
