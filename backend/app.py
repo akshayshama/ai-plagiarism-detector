@@ -19,9 +19,18 @@ warnings.filterwarnings("ignore")
 app = FastAPI(title="AI Plagiarism Detector Core Engine (RoBERTa Semantic)")
 
 # --- 1. CORS Setup ---
+# Browsers reject "*" combined with credentials, so allow an explicit origin list.
+# Override in production with a comma-separated list, e.g.:
+#   ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5174").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # WARNING: Change this to specific domains in production
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

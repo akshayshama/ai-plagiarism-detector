@@ -132,6 +132,11 @@ building the frontend:
 VITE_API_URL=https://your-backend.onrender.com npm run build
 ```
 
+- **CORS:** set `ALLOWED_ORIGINS` (comma-separated) on the deployed backend so the
+  frontend's origin is allowed to call it, e.g.
+  `ALLOWED_ORIGINS=https://myapp.vercel.app`. It defaults to
+  `http://localhost:5174` for local development.
+
 ### Production (single server)
 
 ```bash
