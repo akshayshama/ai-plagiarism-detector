@@ -1,38 +1,104 @@
 import { motion } from 'framer-motion';
 
-const FRONTEND = [
-  'https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB',
-  'https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white',
-  'https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white',
-  'https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white',
-  'https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white',
-  'https://img.shields.io/badge/Lucide-4A4A55?style=for-the-badge&logo=lucide&logoColor=white',
+interface TechBadge {
+  src: string;
+  href: string;
+  name: string;
+}
+
+const FRONTEND: TechBadge[] = [
+  {
+    src: 'https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB',
+    href: 'https://react.dev',
+    name: 'React',
+  },
+  {
+    src: 'https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white',
+    href: 'https://www.typescriptlang.org',
+    name: 'TypeScript',
+  },
+  {
+    src: 'https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white',
+    href: 'https://vitejs.dev',
+    name: 'Vite',
+  },
+  {
+    src: 'https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white',
+    href: 'https://tailwindcss.com',
+    name: 'Tailwind CSS',
+  },
+  {
+    src: 'https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white',
+    href: 'https://motion.dev',
+    name: 'Framer Motion',
+  },
+  {
+    src: 'https://img.shields.io/badge/Lucide-4A4A55?style=for-the-badge&logo=lucide&logoColor=white',
+    href: 'https://lucide.dev',
+    name: 'Lucide',
+  },
 ];
 
-const BACKEND = [
-  'https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white',
-  'https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white',
-  'https://img.shields.io/badge/Uvicorn-499848?style=for-the-badge',
-  'https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white',
-  'https://img.shields.io/badge/Hugging_Face-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black',
-  'https://img.shields.io/badge/Sentence_Transformers-2F6FDF?style=for-the-badge',
-  'https://img.shields.io/badge/CUDA-76B900?style=for-the-badge&logo=nvidia&logoColor=white',
+const BACKEND: TechBadge[] = [
+  {
+    src: 'https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white',
+    href: 'https://www.python.org',
+    name: 'Python',
+  },
+  {
+    src: 'https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white',
+    href: 'https://fastapi.tiangolo.com',
+    name: 'FastAPI',
+  },
+  {
+    src: 'https://img.shields.io/badge/Uvicorn-499848?style=for-the-badge',
+    href: 'https://www.uvicorn.org',
+    name: 'Uvicorn',
+  },
+  {
+    src: 'https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white',
+    href: 'https://pytorch.org',
+    name: 'PyTorch',
+  },
+  {
+    src: 'https://img.shields.io/badge/Hugging_Face-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black',
+    href: 'https://huggingface.co',
+    name: 'Hugging Face',
+  },
+  {
+    src: 'https://img.shields.io/badge/Sentence_Transformers-2F6FDF?style=for-the-badge',
+    href: 'https://www.sbert.net',
+    name: 'Sentence Transformers',
+  },
+  {
+    src: 'https://img.shields.io/badge/CUDA-76B900?style=for-the-badge&logo=nvidia&logoColor=white',
+    href: 'https://developer.nvidia.com/cuda-zone',
+    name: 'CUDA',
+  },
 ];
 
-function MarqueeRow({ badges }: { badges: string[] }) {
+function MarqueeRow({ badges }: { badges: TechBadge[] }) {
   const doubled = [...badges, ...badges];
   return (
     <div className="marquee-mask relative w-full overflow-hidden">
       <div className="marquee-track gap-3 py-1">
-        {doubled.map((src, i) => (
-          <img
+        {doubled.map((badge, i) => (
+          <a
             key={i}
-            src={src}
-            alt=""
-            className="h-9 select-none rounded-lg"
-            draggable={false}
-            loading="lazy"
-          />
+            href={badge.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={badge.name}
+            className="transition-transform duration-200 hover:-translate-y-1 hover:opacity-90"
+          >
+            <img
+              src={badge.src}
+              alt={badge.name}
+              className="h-9 select-none rounded-lg"
+              draggable={false}
+              loading="lazy"
+            />
+          </a>
         ))}
       </div>
     </div>
