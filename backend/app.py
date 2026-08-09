@@ -1,13 +1,15 @@
 # app.py - Final FastAPI Backend with Double-Hybrid Model and CSV Download
 
 import os
+import ast
+import difflib
 from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from sentence_transformers import SentenceTransformer, util
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import warnings
 import csv
 import io
@@ -62,6 +64,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 AI_PLAGIARISM_THRESHOLD = 0.60
 SEMANTIC_PLAGIARISM_THRESHOLD = 0.75
+STRUCTURAL_PLAGIARISM_THRESHOLD = 0.80
 
 AI_TOKENIZER, AI_MODEL, SEMANTIC_MODEL = None, None, None
 
@@ -122,6 +125,49 @@ def calculate_semantic_similarity(text1: str, text2: str) -> float:
     return similarity
 
 
+def _flatten_ast(code: str) -> Optional[List[str]]:
+    """Parse Python source and flatten it into a list of AST node-type names.
+
+    Identifier names (variables/functions) are intentionally dropped so that
+    renaming doesn't defeat the comparison — only the shape of the tree is kept.
+    Returns None if the code is not valid Python.
+    """
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return None
+
+    sequence = []
+
+    def walk(node):
+        sequence.append(type(node).__name__)
+        for child in ast.iter_child_nodes(node):
+            walk(child)
+
+    walk(tree)
+    return sequence
+
+
+def calculate_structural_similarity(code1: str, code2: str) -> Optional[float]:
+    """Compares the structural (AST) shape of two Python files.
+
+    Uses difflib.SequenceMatcher over the flattened AST node-type sequences of
+    both files and returns a similarity score in [0.0, 1.0]. Returns None when
+    either file cannot be parsed as Python, so callers can report that
+    structural analysis was not applicable instead of returning a misleading
+    score.
+    """
+    seq1 = _flatten_ast(code1)
+    seq2 = _flatten_ast(code2)
+    if seq1 is None or seq2 is None:
+        return None
+    if not seq1 and not seq2:
+        return 1.0
+    if not seq1 or not seq2:
+        return 0.0
+    return round(difflib.SequenceMatcher(None, seq1, seq2).ratio(), 4)
+
+
 def generate_csv_report(results: List[Dict[str, Any]]) -> io.StringIO:
     """Converts the list of result dictionaries into an in-memory CSV file stream."""
 
@@ -130,6 +176,7 @@ def generate_csv_report(results: List[Dict[str, Any]]) -> io.StringIO:
         "verdict",
         "ai_probability",
         "semantic_score",
+        "structural_score",
         "is_ai_plagiarism",
     ]
 
@@ -145,6 +192,7 @@ def generate_csv_report(results: List[Dict[str, Any]]) -> io.StringIO:
                 "verdict": row["verdict"],
                 "ai_probability": row["ai_probability"],
                 "semantic_score": row["semantic_score"],
+                "structural_score": row["structural_score"],
                 "is_ai_plagiarism": row["is_ai_plagiarism"],
             }
         )
@@ -172,8 +220,9 @@ async def analyze_submissions(
     files: list[UploadFile] = File(...), format: str = Form("json")
 ):
     """
-    Analyzes exactly two uploaded files for AI generation probability and semantic similarity,
-    returning results as JSON or a downloadable CSV file.
+    Analyzes exactly two uploaded files for AI generation probability, semantic
+    similarity, and AST-based structural similarity, returning results as JSON
+    or a downloadable CSV file.
     """
     if len(files) != 2:
         raise HTTPException(
@@ -204,24 +253,48 @@ async def analyze_submissions(
     results = []
     semantic_score = calculate_semantic_similarity(contents[0], contents[1])
 
+    # Structural (AST) comparison — only applicable when both files parse as Python
+    structural_score = calculate_structural_similarity(contents[0], contents[1])
+    structural_note = None
+    if structural_score is None:
+        structural_note = (
+            "Structural analysis not applicable: at least one file is not valid Python."
+        )
+
     for i in range(2):
         text_content = contents[i]
 
         # AI Detection
         ai_probability = predict_ai_probability(text_content)
         is_ai_generated = ai_probability > AI_PLAGIARISM_THRESHOLD
+
+        # Semantic similarity (shared by both files)
         is_high_semantic_match = semantic_score > SEMANTIC_PLAGIARISM_THRESHOLD
 
-        # Flag the file whenever plagiarism is detected for ANY reason
-        # (AI-generated OR high semantic match), not only for the AI check.
-        is_flagged_plagiarism = is_ai_generated or is_high_semantic_match
+        # Structural similarity (shared by both files, when applicable)
+        is_high_structural_match = (
+            structural_score is not None
+            and structural_score > STRUCTURAL_PLAGIARISM_THRESHOLD
+        )
 
-        # Determine Verdict
-        verdict = "ORIGINAL"
+        # Flag the file whenever plagiarism is detected for ANY reason
+        # (AI-generated OR high semantic match OR high structural match).
+        is_flagged_plagiarism = (
+            is_ai_generated or is_high_semantic_match or is_high_structural_match
+        )
+
+        # Determine Verdict (list every signal that triggered)
+        triggers = []
         if is_ai_generated:
-            verdict = "PLAGIARISM (High AI Prob)"
-        elif is_high_semantic_match:
-            verdict = "PLAGIARISM (High Semantic Match)"
+            triggers.append("High AI Prob")
+        if is_high_semantic_match:
+            triggers.append("High Semantic Match")
+        if is_high_structural_match:
+            triggers.append("High Structural Match")
+
+        verdict = "ORIGINAL"
+        if triggers:
+            verdict = f"PLAGIARISM ({', '.join(triggers)})"
 
         results.append(
             {
@@ -229,23 +302,29 @@ async def analyze_submissions(
                 "ai_probability": round(ai_probability, 4),
                 "is_ai_plagiarism": is_flagged_plagiarism,
                 "semantic_score": round(semantic_score, 4),
+                "structural_score": structural_score,
+                "structural_note": structural_note,
                 "verdict": verdict,
             }
         )
 
     # 3. Determine Overall Verdict
-    # NOTE: is_ai_plagiarism now means "flagged for any reason", so re-derive the
-    # AI-only check here to keep the verdict strings accurate.
+    # NOTE: is_ai_plagiarism means "flagged for any reason", so re-derive each
+    # signal check here to keep the verdict strings accurate.
+    overall_reasons = []
+    if any(r["ai_probability"] > AI_PLAGIARISM_THRESHOLD for r in results):
+        overall_reasons.append("One or both files are AI-generated")
+    if semantic_score > SEMANTIC_PLAGIARISM_THRESHOLD:
+        overall_reasons.append("High semantic match between the two files")
+    if (
+        structural_score is not None
+        and structural_score > STRUCTURAL_PLAGIARISM_THRESHOLD
+    ):
+        overall_reasons.append("High structural match between the two files")
+
     overall_verdict = "ORIGINAL (All Checks Passed)"
-    any_file_ai_generated = any(
-        r["ai_probability"] > AI_PLAGIARISM_THRESHOLD for r in results
-    )
-    if any_file_ai_generated:
-        overall_verdict = "PLAGIARISM DETECTED (One or both files are AI-generated)"
-    elif semantic_score > SEMANTIC_PLAGIARISM_THRESHOLD:
-        overall_verdict = (
-            "PLAGIARISM DETECTED (High semantic match between the two files)"
-        )
+    if overall_reasons:
+        overall_verdict = "PLAGIARISM DETECTED (" + "; ".join(overall_reasons) + ")"
 
     # --- 4. Return Response ---
 

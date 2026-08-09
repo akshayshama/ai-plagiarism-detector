@@ -186,21 +186,25 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 ```json
 {
-  "overall_verdict": "PLAGIARISM DETECTED (High semantic match between the two files)",
+  "overall_verdict": "PLAGIARISM DETECTED (High structural match between the two files)",
   "file_results": [
     {
       "filename": "a.py",
-      "ai_probability": 0.93,
+      "ai_probability": 0.11,
       "is_ai_plagiarism": true,
       "semantic_score": 0.81,
-      "verdict": "PLAGIARISM (High AI Prob)"
+      "structural_score": 0.92,
+      "structural_note": null,
+      "verdict": "PLAGIARISM (High Semantic Match, High Structural Match)"
     },
     {
       "filename": "b.py",
       "ai_probability": 0.11,
       "is_ai_plagiarism": true,
       "semantic_score": 0.81,
-      "verdict": "PLAGIARISM (High Semantic Match)"
+      "structural_score": 0.92,
+      "structural_note": null,
+      "verdict": "PLAGIARISM (High Semantic Match, High Structural Match)"
     }
   ],
   "semantic_similarity_score_A_B": 0.81
@@ -208,7 +212,8 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 > `is_ai_plagiarism` is `true` whenever a file is flagged for **any** reason — either
-> AI-generated (probability > 60%) or a high semantic match (> 75%) — not only the AI check.
+> AI-generated (probability > 60%), a high semantic match (> 75%), or a high structural
+> match (> 80%) — not only the AI check.
 
 ## Thresholds
 
@@ -216,3 +221,4 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 | ----------------- | -------------------- | -------------------------------------- |
 | AI generation     | probability > 60%    | `chatgpt-detector-roberta`             |
 | Cross-file match  | similarity > 75%     | `all-MiniLM-L6-v2` cosine similarity  |
+| Structural match  | similarity > 80%     | AST node-type sequence (stdlib `ast`)  |
